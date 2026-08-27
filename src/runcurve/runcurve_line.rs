@@ -12,6 +12,20 @@ pub struct TimeResult {
 }
 
 /// 路線全体の停車駅間ごとにランカーブを計算する
+///
+/// 通過駅（isPass == true）を除外した停車駅の組み合わせについて、
+/// 各駅間のランカーブを計算します。
+///
+/// # 引数
+///
+/// - `route`: 路線データ
+/// - `vehicle`: 車両データ
+/// - `max_speed`: 最高速度 [km/h]
+///
+/// # 戻り値
+///
+/// 駅間ごとのランカーブ計算結果のベクタ。各要素は駅間の
+/// 速度列とノッチ操作履歴を含みます。
 pub fn get_runcurve_line(route: &Route, vehicle: &Vehicle, max_speed: f64) -> Vec<RuncurveResult> {
     // 通過駅（isPass == true）を除外した停車駅リストを抽出
     let stop_positions: Vec<&StopPosition> =
@@ -33,6 +47,19 @@ pub fn get_runcurve_line(route: &Route, vehicle: &Vehicle, max_speed: f64) -> Ve
 }
 
 /// 各駅間（通過駅による途中分割を含む）の所要時間を算出する
+///
+/// 駅間ランカーブの結果を取得し、通過駅がある場合は
+/// 通過駅で時間を分割して、各小区間の所要時間を計算します。
+///
+/// # 引数
+///
+/// - `route`: 路線データ（通過駅位置を取得するために使用）
+/// - `runcurves`: 駅間ランカーブ計算結果のベクタ
+///
+/// # 戻り値
+///
+/// 通過駅による分割を含む各区間の所要時間結果のベクタ。
+/// 出発駅の位置順にソートされています。
 pub fn get_runcurve_line_time(
     route: &Route,
     runcurves: &[RuncurveResult],
@@ -56,6 +83,25 @@ pub fn get_runcurve_line_time(
 }
 
 /// 単一のランカーブ結果から、通過駅等を含めた各区間の所要時間を分割抽出する
+///
+/// ランカーブ計算結果から、通過駅位置で時間を分割して
+/// 各小区間の所要時間を計算します。
+///
+/// # 引数
+///
+/// - `runcurve`: 単一のランカーブ計算結果
+/// - `route`: 路線データ（通過駅位置を取得するために使用）
+///
+/// # 戻り値
+///
+/// 通過駅による分割を含む各区間の所要時間結果のベクタ。
+///
+/// # 処理の流れ
+///
+/// 1. ランカーブ結果の開始・終了位置を取得
+/// 2. その範囲内（開始-1 ～ 終了+1）に存在するすべての駅（通過駅含む）を取得
+/// 3. 途中に通過駅がない場合は直通区間として処理
+/// 4. 途中に通過駅がある場合は、各通過駅間で時間を分割
 fn split_time(runcurve: &RuncurveResult, route: &Route) -> Vec<TimeResult> {
     if runcurve.runcurve_array.is_empty() {
         return Vec::new();

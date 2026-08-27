@@ -2,6 +2,24 @@ use crate::model::route::{Route, TunnelType};
 use crate::model::vehicle::Vehicle;
 
 /// 路線上の1mごとの曲線半径 [m] を求める関数（曲線がない区間は 0.0）
+///
+/// 指定された開始位置から終了位置までの区間について、
+/// 各1m区間ごとの曲線半径を計算します。曲線がない区間は 0.0 を返します。
+///
+/// # 引数
+///
+/// - `route`: 路線データ
+/// - `_vehicle`: 車両データ（未使用ですが、将来の拡張のために引数として残しています）
+/// - `start`: 開始位置 [m]
+/// - `end`: 終了位置 [m]
+///
+/// # 戻り値
+///
+/// 各1m区間の曲線半径 [m] のベクタ。曲線がない区間は 0.0。
+///
+/// # 計算方法
+///
+/// 路線データの曲線情報を参照し、各区間が曲線と重複する部分の半径を設定します。
 pub fn get_curve_radius(route: &Route, _vehicle: &Vehicle, start: usize, end: usize) -> Vec<f64> {
     let length = end.saturating_sub(start);
     let mut result = vec![0.0; length];
@@ -29,6 +47,26 @@ pub fn get_curve_radius(route: &Route, _vehicle: &Vehicle, start: usize, end: us
 }
 
 /// 路線上の1mごとの勾配値 [‰] を求める関数（車両編成長による平滑化処理処理を含む）
+///
+/// 指定された開始位置から終了位置までの区間について、
+/// 各1m区間ごとの勾配値を計算します。車両編成長による平滑化（移動平均）処理を含みます。
+///
+/// # 引数
+///
+/// - `route`: 路線データ
+/// - `vehicle`: 車両データ（車両編成長を使用して平滑化処理を行います）
+/// - `start`: 開始位置 [m]
+/// - `end`: 終了位置 [m]
+///
+/// # 戻り値
+///
+/// 各1m区間の勾配値 [‰] のベクタ。上りが正、下りが負。
+///
+/// # 処理の流れ
+///
+/// 1. 路線の勾配データを位置順にソート
+/// 2. 各勾配点から終了位置までを同じ勾配値で埋める
+/// 3. 車両編成長に応じた移平均で平滑化処理
 pub fn get_gradient(route: &Route, vehicle: &Vehicle, start: usize, end: usize) -> Vec<f64> {
     let length = end.saturating_sub(start);
     let mut result = vec![0.0; length];
@@ -81,6 +119,28 @@ pub fn get_gradient(route: &Route, vehicle: &Vehicle, start: usize, end: usize) 
 }
 
 /// 路線上の1mごとのトンネル種別を求める関数（0: なし, 1: 複線, 2: 単線）
+///
+/// 指定された開始位置から終了位置までの区間について、
+/// 各1m区間ごとのトンネル種別を計算します。
+///
+/// # 引数
+///
+/// - `route`: 路線データ
+/// - `_vehicle`: 車両データ（未使用ですが、将来の拡張のために引数として残しています）
+/// - `start`: 開始位置 [m]
+/// - `end`: 終了位置 [m]
+///
+/// # 戻り値
+///
+/// 各1m区間のトンネル種別 [f64] のベクタ
+/// - 0.0: トンネルなし
+/// - 1.0: 複線トンネル
+/// - 2.0: 単線トンネル（またはその他のトンネル種別）
+///
+/// # トンネルタイプのマッピング
+///
+/// - `TunnelType::Double` → 1.0
+/// - その他のトンネルタイプ (`TunnelType::Single` など) → 2.0
 pub fn get_tunnel(route: &Route, _vehicle: &Vehicle, start: usize, end: usize) -> Vec<f64> {
     let length = end.saturating_sub(start);
     let mut result = vec![0.0; length];

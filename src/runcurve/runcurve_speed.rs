@@ -9,8 +9,18 @@ use crate::{
 
 /// 1m移動した際の等加速度運動による終端速度 [km/h] を計算
 ///
-/// v_end = sqrt(v_start^2 + 2 * a * dx) を基本式とし、
+/// 基本式: v_end = sqrt(v_start^2 + 2 * a * dx)
 /// 速度を m/s に換算して計算後に km/h へ戻す。
+///
+/// # 引数
+///
+/// - `current_speed_kmh`: 現在の速度 [km/h]
+/// - `acceleration_kmhs`: 加速度 [km/h/s]
+/// - `dx_m`: 移動距離 [m]
+///
+/// # 戻り値
+///
+/// 1m 移動した際の等加速度運動による終端速度 [km/h]
 #[inline]
 fn calc_next_speed(current_speed_kmh: f64, acceleration_kmhs: f64, dx_m: f64) -> f64 {
     let current_speed_ms = current_speed_kmh / 3.6;
@@ -27,12 +37,35 @@ fn calc_next_speed(current_speed_kmh: f64, acceleration_kmhs: f64, dx_m: f64) ->
 }
 
 /// 曲線抵抗 [kgf/t] を算出する (800 / R)
+///
+/// # 引数
+///
+/// - `radius`: 曲線半径 [m]
+///
+/// # 戻り値
+///
+/// 曲線抵抗 [kgf/t]。半径が 0.0 の場合は 0.0 を返します。
 #[inline]
 fn curve_resistance(radius: f64) -> f64 {
     if radius != 0.0 { 800.0 / radius } else { 0.0 }
 }
 
 /// 惰行時、1m先の速度を求める [km/h]
+///
+/// ノッチオフ状態（惰行走行）で、現在の速度から 1m 進んだ位置での速度を求めます。
+/// 走行抵抗・勾配抵抗・曲線抵抗による減速を考慮します。
+///
+/// # 引数
+///
+/// - `current_speed`: 現在の速度 [km/h]
+/// - `vehicle`: 車両データ
+/// - `radius`: 曲線半径 [m]（曲線がない区間では 0.0）
+/// - `gradient`: 勾配値 [‰]（上り正、下り負）
+/// - `tunnel`: トンネル抵抗値
+///
+/// # 戻り値
+///
+/// 1m 先の速度 [km/h]
 pub fn get_notch_off_next_speed(
     current_speed: f64,
     vehicle: &Vehicle,
@@ -55,6 +88,21 @@ pub fn get_notch_off_next_speed(
 }
 
 /// 加速時、1m先の速度を求める [km/h]
+///
+/// 加速走行時に、現在の速度から 1m 進んだ位置での速度を求めます。
+/// 引張力と走行抵抗・勾配抵抗・曲線抵抗の影響を考慮します。
+///
+/// # 引数
+///
+/// - `current_speed`: 現在の速度 [km/h]
+/// - `vehicle`: 車両データ
+/// - `radius`: 曲線半径 [m]（曲線がない区間では 0.0）
+/// - `gradient`: 勾配値 [‰]（上り正、下り負）
+/// - `tunnel`: トンネル抵抗値
+///
+/// # 戻り値
+///
+/// 1m 先の速度 [km/h]
 pub fn get_accel_next_speed(
     current_speed: f64,
     vehicle: &Vehicle,
@@ -77,6 +125,18 @@ pub fn get_accel_next_speed(
 /// 減速した際の1m前の速度（逆算）を求める [km/h]
 ///
 /// 減速パターン（ブレーキ曲線）を終点から起点に向かって逆算描画する際に使用。
+///
+/// # 引数
+///
+/// - `current_speed`: 現在の速度 [km/h]
+/// - `vehicle`: 車両データ
+/// - `radius`: 曲線半径 [m]（曲線がない区間では 0.0）
+/// - `gradient`: 勾配値 [‰]（上り正、下り負）
+/// - `tunnel`: トンネル抵抗値
+///
+/// # 戻り値
+///
+/// 1m 前の速度（逆算値） [km/h]
 pub fn get_decel_before_speed(
     current_speed: f64,
     vehicle: &Vehicle,
@@ -97,6 +157,23 @@ pub fn get_decel_before_speed(
 }
 
 /// ランカーブ（距離ごとの速度列とノッチ操作履歴）を計算する
+///
+/// 指定された区間について、1m ごとの速度とノッチ操作履歴を計算します。
+/// 制限速度・勾配・曲線・トンネルなどの路線を考慮します。
+///
+/// # 引数
+///
+/// - `route`: 路線データ
+/// - `vehicle`: 車両データ
+/// - `start_pos`: 開始位置 [m]
+/// - `end_pos`: 終了位置 [m]
+/// - `max_speed`: 最高速度 [km/h]
+///
+/// # 戻り値
+///
+/// タプル (速度配列 [km/h], ノッチ操作履歴のベクタ)
+/// - 速度配列: 各位置での速度 [km/h]
+/// - ノッチ操作履歴: ノッチ操作の位置・種別・詳細
 pub fn get_runcurve_speed(
     route: &Route,
     vehicle: &Vehicle,
@@ -435,6 +512,20 @@ pub fn get_runcurve_speed(
 }
 
 /// 1mごとの速度配列から累積経過時間 [s] の配列を算出する
+///
+/// 速度配列から各位置での累積経過時間を計算します。
+///
+/// # 引数
+///
+/// - `speed_array`: 各1m区間での速度配列 [km/h]
+///
+/// # 戻り値
+///
+/// 各位置での累積経過時間 [s] のベクタ
+///
+/// # 計算式
+///
+/// Δt = Δx / v = 1m / (v / 3.6 m/s) = 3.6 / v [s]
 pub fn get_runcurve_time(speed_array: &[f64]) -> Vec<f64> {
     let mut result = vec![0.0; speed_array.len()];
     let mut current_time = 0.0;
@@ -453,6 +544,21 @@ pub fn get_runcurve_time(speed_array: &[f64]) -> Vec<f64> {
 }
 
 /// ランカーブ（速度・時間・位置・ノッチ操作）の総合算出
+///
+/// 速度配列、ノッチ操作履歴、累積時間配列を組み合わせて、
+/// 位置・速度・時間・ノッチ操作を含む完全なランカーブ結果を生成します。
+///
+/// # 引数
+///
+/// - `route`: 路線データ
+/// - `vehicle`: 車両データ
+/// - `start_pos`: 計算開始位置 [m]
+/// - `end_pos`: 計算終了位置 [m]
+/// - `max_speed`: 最高速度 [km/h]
+///
+/// # 戻り値
+///
+/// ランカーブ計算結果。各位置での距離・速度・時間、およびノッチ操作履歴を含みます。
 pub fn get_runcurve_speed_and_time(
     route: &Route,
     vehicle: &Vehicle,
@@ -481,6 +587,22 @@ pub fn get_runcurve_speed_and_time(
 }
 
 /// 制限速度の1mごとの配列を生成
+///
+/// 指定された区間について、路線データの制限速度情報を参照し、
+/// 各1m区間ごとの制限速度を計算します。制限速度が設定されていない区間は
+/// `max_speed` 引数の値が使用されます。
+///
+/// # 引数
+///
+/// - `route`: 路線データ
+/// - `_vehicle`: 車両データ（未使用）
+/// - `start_pos`: 計算開始位置 [m]
+/// - `end_pos`: 計算終了位置 [m]
+/// - `max_speed`: 最高速度 [km/h]（制限速度が設定されていない区間で使用）
+///
+/// # 戻り値
+///
+/// 各1m区間の制限速度 [km/h] のベクタ
 pub fn get_limit_speed_array(
     route: &Route,
     _vehicle: &Vehicle,
@@ -522,6 +644,32 @@ pub fn get_limit_speed_array(
 }
 
 /// 制限速度および終点停車へのブレーキパターン配列（1mごと）を生成
+///
+/// 各制限速度の開始点から終点停車までのブレーキパターン（速度曲線）を逆算し、
+/// 1m区間ごとにブレーキパターン上の速度を求めます。
+/// 制限速度の変化点ごとに減速パターンが計算され、最も厳しい（低い）パターンが採用されます。
+///
+/// # 引数
+///
+/// - `route`: 路線データ
+/// - `vehicle`: 車両データ
+/// - `start_pos`: 計算開始位置 [m]
+/// - `end_pos`: 計算終了位置 [m]
+/// - `limit_speed_array`: 1mごとの制限速度 [km/h]
+/// - `curve_array`: 1mごとの曲線半径 [m]
+/// - `gradient_array`: 1mごとの勾配値 [‰]
+/// - `tunnel_array`: 1mごとのトンネル種別
+///
+/// # 戻り値
+///
+/// 各1m区間のブレーキパターン上の速度 [km/h] のベクタ。
+/// パターンがない区間は -1.0。
+///
+/// # 計算の流れ
+///
+/// 1. 終点位置に停止条件 (speed = 0) を追加
+/// 2. 各制限速度の開始点から `get_decel_before_speed` で逆算
+/// 3. 複数の制限速度が重なる場合、最も厳しい（低い）パターンを採用
 pub fn get_limit_speed_brake_pattern_array(
     route: &Route,
     vehicle: &Vehicle,
@@ -585,6 +733,27 @@ pub fn get_limit_speed_brake_pattern_array(
 }
 
 /// 惰行で10秒間走った時の予測到達速度 [km/h] を計算する
+///
+/// ノッチオフ（惰行）状態から10秒間走行した場合の予測到達速度を求めます。
+/// ノッチオフ遷移の判定などに使用されます。
+///
+/// # 引数
+///
+/// - `_route`: 路線データ（未使用）
+/// - `vehicle`: 車両データ
+/// - `_start_pos`: 計算開始位置 [m]（未使用）
+/// - `_end_pos`: 計算終了位置 [m]（未使用）
+/// - `limit_speed_array`: 1mごとの制限速度 [km/h]
+/// - `curve_array`: 1mごとの曲線半径 [m]
+/// - `gradient_array`: 1mごとの勾配値 [‰]
+/// - `tunnel_array`: 1mごとのトンネル種別
+/// - `index`: 開始インデックス
+/// - `current_speed`: 現在の速度 [km/h]
+///
+/// # 戻り値
+///
+/// 10秒間惰行走行後の予測到達速度 [km/h]。
+/// 速度が0以下になった場合、または配列の末尾に達した場合は 0.0。
 pub fn get_10s_later_notch_off_speed(
     _route: &Route,
     vehicle: &Vehicle,
@@ -633,7 +802,25 @@ pub fn get_10s_later_notch_off_speed(
 
 /// 現在速度がブレーキパターンと交差（接触）するインデックス（距離位置）を検索する
 ///
-/// パターンが存在し、かつ速度がパターンを下回る（交差する）位置を見つけた場合は `Some(usize)` を返す
+/// ブレーキパターン配列と現在速度を比較し、現在速度がパターンと交差する
+/// （パターン線をまたぐ）位置のインデックスを検索します。
+///
+/// # 引数
+///
+/// - `brake_pattern_array`: 1mごとのブレーキパターン上の速度 [km/h]（-1.0 はパターンなし）
+/// - `current_speed`: 現在速度 [km/h]
+/// - `index`: 検索開始インデックス
+///
+/// # 戻り値
+///
+/// 交差位置のインデックスを `Some(usize)` で返します。
+/// パターンがない区間 (-1.0) で中断された場合、
+/// または交差位置が見つからなかった場合は `None`。
+///
+/// # 交差判定
+///
+/// 現在速度が区間 [index, index+1] で以下を満たす場合に交差と判定:
+/// - `brake_pattern_array[index + 1] < current_speed < brake_pattern_array[index]`
 pub fn get_brake_pattern_distance(
     brake_pattern_array: &[f64],
     current_speed: f64,

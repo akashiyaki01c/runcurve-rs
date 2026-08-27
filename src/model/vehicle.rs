@@ -1,6 +1,23 @@
 use serde::{Deserialize, Serialize};
 
-/// 速度-引張力（または走行抵抗）のテーブル
+/// 速度と引張力（または抵抗力）の対応表。
+///
+/// 車両の力学特性（走行抵抗、引張力、減速力）を、速度 [km/h] と力 [N] の
+/// データポイントのリストとして保持します。線形補間により任意の速度での力を算出できます。
+///
+/// # データフォーマット
+///
+/// - `value`: (速度[km/h], 力[N]) のタプルを格納したベクタ
+/// - 速度は昇順であることが必須です
+///
+/// # 例
+///
+/// ```ignore
+/// // 0, 10, 20 km/h でそれぞれ 100, 200, 300 N の引張力を持つテーブル
+/// let table = VelocityForceTable {
+///     value: vec![(0.0, 100.0), (10.0, 200.0), (20.0, 300.0)],
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct VelocityForceTable {
@@ -49,6 +66,33 @@ impl VelocityForceTable {
 }
 
 /// 車両データ
+///
+/// 鉄道車両の物理特性と力学特性を保持します。
+///
+/// # フィールド
+///
+/// - `name`: 車両名
+/// - `max_speed`: 最高速度 [km/h]
+/// - `number_of_cars`: 編成両数
+/// - `train_length`: 編成長 [m]
+/// - `train_weight`: 編成重量 [t]
+/// - `capacity`: 編成定員
+/// - `human_weight`: 1人あたり重量 [kg]
+/// - `occupancy_rate`: 乗車率 [%]
+/// - `unit_count`: ユニット数
+/// - `startup_acceleration`: 起動加速度 [km/h/s]
+/// - `deceleration`: 減速度 [km/h/s]
+/// - `fixed_torque_speed`: 定トルク領域終了速度 [km/h]
+/// - `constant_power_speed`: 定出力領域終了速度 [km/h]
+/// - `m_cars`: M車（電動車）の両数
+/// - `t_cars`: T車（付随車）の両数
+/// - `m_weight`: M車の重量 [t]
+/// - `t_weight`: T車の重量 [t]
+/// - `coefficient0`: 定出力領域の定数
+/// - `coefficient1`: 特性領域の定数
+/// - `acceleration_force`: 加速時の引張力データ
+/// - `deceleration_force`: 減速時の引張力データ
+/// - `running_resist`: 走行抵抗データ
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Vehicle {
@@ -101,10 +145,27 @@ pub struct Vehicle {
 }
 
 /// デフォルトの走行抵抗 [kgf] を計算する（1km/h刻み）
-/// 
-/// - `m_cars` / `t_cars`: M車 / T車の両数
-/// - `m_weight` / `t_weight`: M車 / T車の重量 [t]
+///
+/// 鉄道車両の走行抵抗（機械抵抗・空気抵抗）を速度ごとに計算します。
+///
+/// # 引数
+///
+/// - `m_cars`: M車（電動車）の両数
+/// - `t_cars`: T車（付随車）の両数
+/// - `m_weight`: M車の重量 [t]
+/// - `t_weight`: T車の重量 [t]
 /// - `max_speed`: 最高速度 [km/h]
+///
+/// # 戻り値
+///
+/// (速度 [km/h], 走行抵抗 [kgf]) のタプルのベクタ
+///
+/// # 計算式
+///
+/// - M車の機械抵抗: (1.65 + 0.0247 * v) * M車総重量
+/// - T車の機械抵抗: (0.78 + 0.028 * v) * T車総重量
+/// - 空気抵抗: 0.028 + 0.0078 * (両数 - 1) * v²
+/// - 起動時の出発抵抗を 0km/h: +3kgf/t, 1km/h: +2kgf/t, 2km/h: +1kgf/t で補正
 pub fn default_running_resistance(
     m_cars: f64,
     t_cars: f64,
@@ -143,6 +204,34 @@ pub fn default_running_resistance(
 }
 
 /// デフォルトの引張力曲線 [kgf] を計算する（VVVF制御車・1km/h刻み）
+///
+/// VVVF（電動機制御）による鉄道車両の引張力曲線を速度ごとに計算します。
+/// 引張力曲線は一般に 3 つの領域に分かれます: 定トルク領域、定出力領域、特性領域。
+///
+/// # 引数
+///
+/// - `startup_acceleration`: 起動加速度 [km/h/s]
+/// - `fixed_torque_speed`: 定トルク領域終了速度 [km/h]
+/// - `constant_power_speed`: 定出力領域終了速度 [km/h]
+/// - `max_speed`: 最高速度 [km/h]
+/// - `m_cars`: M車の両数
+/// - `t_cars`: T車の両数
+/// - `m_weight`: M車の重量 [t]
+/// - `t_weight`: T車の重量 [t]
+/// - `coefficient0`: 定出力領域の定数（通常 1.0）
+/// - `coefficient1`: 特性領域の定数（通常 2.0）
+///
+/// # 戻り値
+///
+/// (速度 [km/h], 引張力 [kgf]) のタプルのベクタ
+///
+/// # 計算領域
+///
+/// 1. **定トルク領域** [0, fixed_torque_speed): 一定の引張力
+/// 2. **定出力領域** [fixed_torque_speed, constant_power_speed): 引張力が速度に反比例
+/// 3. **特性領域** [constant_power_speed, max_speed): 引張力が速度の `coefficient1` 乗に反比例
+///
+/// 各領域の引張力は 10% のマージンを含みます。
 pub fn default_tractive_force(
     startup_acceleration: f64,
     fixed_torque_speed: usize,
@@ -209,6 +298,23 @@ pub fn default_tractive_force(
 }
 
 /// 車両オブジェクトに力学データ（引張力・減速度・走行抵抗）をセットする
+///
+/// 指定された車両パラメータに基づき、引張力曲線、減速力曲線、走行抵抗曲線を計算して
+/// 車両オブジェクトに設定します。
+///
+/// # 引数
+///
+/// - `vehicle`: 力学データをセットする車両オブジェクト
+///
+/// # 戻り値
+///
+/// 力学データがセットされた車両オブジェクト
+///
+/// # 構成
+///
+/// 1. 加速時の引張力曲線を `default_tractive_force` で計算して設定
+/// 2. 減速時の引張力曲線を減速度から計算して設定
+/// 3. 走行抵抗曲線を `default_running_resistance` で計算して設定
 pub fn set_force_data(mut vehicle: Vehicle) -> Vehicle {
     let max_speed = vehicle.max_speed as usize;
 
