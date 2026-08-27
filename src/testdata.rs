@@ -43,8 +43,8 @@ pub fn get_test_route() -> Route {
         ],
         tunnels: vec![],
         limit_speeds: vec![LimitSpeed {
-            start: 12100.0 - 100.0,
-            end: 12100.0 + 20.0,
+            start: 1210.0 - 100.0,
+            end: 1210.0 + 20.0,
             speed: 45.0,
         }],
         stop_positions: vec![

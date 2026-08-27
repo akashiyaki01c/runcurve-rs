@@ -5,10 +5,10 @@ use svg::node::element::{path::Data, *};
 use svg2pdf::{ConversionOptions, PageOptions};
 
 use crate::model::{
-        route::{Curve, CurveDirection, Route},
-        runcurve::RuncurveResult,
-        vehicle::Vehicle,
-    };
+    route::{Curve, CurveDirection, Route},
+    runcurve::RuncurveResult,
+    vehicle::Vehicle,
+};
 
 /// 距離軸の拡大率
 const X_SCALE: f64 = 0.5;
@@ -86,6 +86,13 @@ pub fn draw_svg(
         end_position - start_position,
         start_position,
     );
+    svg = draw_limit(
+        svg,
+        route,
+        max_speed,
+        end_position - start_position,
+        start_position,
+    );
     svg = draw_station(
         svg,
         route,
@@ -110,7 +117,7 @@ fn draw_axis(svg: SVG, max_speed: f64, distance: f64, start_position: f64) -> SV
     let mut horizon = vec![];
     let mut horizon_text = vec![];
     for speed in 0..=max_speed as usize {
-        let stroke_width = if speed % 10 == 0 { "0.5" } else { "0.25" };
+        let stroke_width = if speed % 10 == 0 { "0.5" } else { "0.1" };
         horizon.push(
             Line::new()
                 .set("x1", X_HEADER)
@@ -141,7 +148,7 @@ fn draw_axis(svg: SVG, max_speed: f64, distance: f64, start_position: f64) -> SV
         if distance % 10 != 0 {
             continue;
         }
-        let stroke_width = if distance % 100 == 0 { "0.5" } else { "0.25" };
+        let stroke_width = if distance % 100 == 0 { "0.5" } else { "0.1" };
         vertical.push(
             Line::new()
                 .set(
@@ -267,13 +274,7 @@ fn draw_train(svg: SVG, result: &[RuncurveResult], max_speed: f64, start_positio
     svg.add(group)
 }
 
-fn draw_curve(
-    svg: SVG,
-    route: &Route,
-    max_speed: f64,
-    distance: f64,
-    start_position: f64,
-) -> SVG {
+fn draw_curve(svg: SVG, route: &Route, max_speed: f64, distance: f64, start_position: f64) -> SVG {
     let mut group = Group::new();
     group = group.add(
         Rectangle::new()
@@ -426,6 +427,41 @@ fn draw_gradient(
                 .set("font-family", "Ubuntu")
                 .set("text-anchor", "left")
                 .set("dominant-baseline", "central"),
+        );
+    }
+
+    svg.add(group)
+}
+
+fn draw_limit(svg: SVG, route: &Route, max_speed: f64, distance: f64, start_position: f64) -> SVG {
+    let mut group = Group::new();
+
+    for limit in &route.limit_speeds {
+        group = group.add(
+            Path::new()
+                .set(
+                    "d",
+                    Data::new()
+                        .move_to((
+                            (limit.start - start_position) * X_SCALE + X_HEADER,
+                            (max_speed - limit.speed) * Y_SCALE + Y_HEADER - 10.0,
+                        ))
+                        .line_to((
+                            (limit.start - start_position) * X_SCALE + X_HEADER,
+                            (max_speed - limit.speed) * Y_SCALE + Y_HEADER,
+                        ))
+                        .line_to((
+                            (limit.end - start_position) * X_SCALE + X_HEADER,
+                            (max_speed - limit.speed) * Y_SCALE + Y_HEADER,
+                        ))
+                        .line_to((
+                            (limit.end - start_position) * X_SCALE + X_HEADER,
+                            (max_speed - limit.speed) * Y_SCALE + Y_HEADER - 10.0,
+                        )),
+                )
+                .set("fill", "none")
+                .set("stroke", "black")
+                .set("stroke-width", "1"),
         );
     }
 
