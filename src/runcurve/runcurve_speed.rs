@@ -2,7 +2,7 @@ use crate::{
     model::{
         route::{LimitSpeed, Route},
         runcurve::{NotchOperate, NotchType, Runcurve, RuncurveResult},
-        vehicle::Vehicle,
+        vehicle::{Vehicle, INERTIA_COEFFICIENT},
     },
     runcurve::route_data::{get_curve_radius, get_gradient, get_tunnel},
 };
@@ -50,7 +50,12 @@ fn calc_next_speed(current_speed_kmh: f64, acceleration_kmhs: f64, dx_m: f64) ->
 /// 曲線抵抗 [kgf/t]。半径が 0.0 の場合は 0.0 を返します。
 #[inline]
 fn curve_resistance(radius: f64) -> f64 {
-    if radius != 0.0 { 800.0 / radius } else { 0.0 }
+    if radius > 0.0 { 600.0 / radius } else { 0.0 }
+}
+
+#[inline]
+fn force_to_acceleration(force_kgf_per_t: f64) -> f64 {
+    force_kgf_per_t * 9.807 * 3.6 / (1000.0 * (1.0 + INERTIA_COEFFICIENT))
 }
 
 /// 惰行時、1m先の速度を求める [km/h]
@@ -86,9 +91,8 @@ pub fn get_notch_off_next_speed(
     force -= tunnel + gradient;
     force -= curve_resistance(radius);
 
-    // 引張力・抵抗 [kgf/t] から加速度 [km/h/s] への換算定数 (30.9)
     // 加速度 [km/h/s]
-    let acceleration = force / 30.9;
+    let acceleration = force_to_acceleration(force);
 
     calc_next_speed(current_speed, acceleration, 1.0)
 }
@@ -127,7 +131,7 @@ pub fn get_accel_next_speed(
     force -= curve_resistance(radius);
 
     // 加速度 [km/h/s]
-    let acceleration = force / 30.9;
+    let acceleration = force_to_acceleration(force);
 
     calc_next_speed(current_speed, acceleration, 1.0)
 }
@@ -160,12 +164,12 @@ pub fn get_decel_before_speed(
     let decel_force = vehicle.deceleration_force.force_at(current_speed);
 
     // 車両重量1tあたりの合力 [kgf/t]
-    let mut force = -running_resist / vehicle.train_weight;
+    let mut force = running_resist / vehicle.train_weight;
     force += tunnel + gradient + (decel_force / vehicle.train_weight);
     force += curve_resistance(radius);
 
     // 逆算に用いる加速度 [km/h/s]
-    let acceleration = force / 30.9;
+    let acceleration = force_to_acceleration(force);
 
     calc_next_speed(current_speed, acceleration, 1.0)
 }
@@ -913,6 +917,18 @@ fn get_brake_pattern_distance_binary(
 mod tests {
     use super::*;
     use crate::testdata::{get_test_route, get_test_vehicle};
+
+    #[test]
+    fn curve_resistance_matches_documented_600_over_radius() {
+        assert!((curve_resistance(600.0) - 1.0).abs() < f64::EPSILON);
+        assert_eq!(curve_resistance(0.0), 0.0);
+    }
+
+    #[test]
+    fn force_conversion_matches_kgf_per_tonne_to_kmh_per_second() {
+        let expected = 9.807 * 3.6 / (1000.0 * (1.0 + INERTIA_COEFFICIENT));
+        assert!((force_to_acceleration(1.0) - expected).abs() < 1e-12);
+    }
 
     #[test]
     fn get_runcurve_speed_returns_empty_for_empty_range() {

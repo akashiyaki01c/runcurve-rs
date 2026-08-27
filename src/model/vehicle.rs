@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+/// 電車の慣性係数。文書に示された電車の範囲 (0.08 - 0.09) の上限を使用する。
+pub const INERTIA_COEFFICIENT: f64 = 0.09;
+
 /// 速度と引張力（または抵抗力）の対応表。
 ///
 /// 車両の力学特性（走行抵抗、引張力、減速力）を、速度 [km/h] と力 [kgf] の
@@ -256,17 +259,16 @@ pub fn default_tractive_force(
     coefficient1: f64,
 ) -> Vec<(f64, f64)> {
     let mut result = Vec::with_capacity(max_speed);
-    // 力のマージン率（無次元）
-    let margin_ratio = 0.1;
     // 編成総重量 [kg]
     let total_weight_kg = (m_cars * m_weight + t_cars * t_weight) * 1000.0;
 
     // 1. 定トルク領域 [0..fixed_torque_speed)
-    // F[kgf] = 編成重量[kg] * 起動加速度[m/s^2] / 9.807
+    // F[kgf] = 編成重量[kg] * 起動加速度[m/s^2] * (1 + rho) / g
     // 定トルク領域の基準引張力 [kgf]
-    let fixed_torque_base = (startup_acceleration / 3.6) * total_weight_kg / 9.807;
-    // 定トルク領域の引張力 [kgf]
-    let fixed_torque = fixed_torque_base * (1.0 - margin_ratio);
+    let fixed_torque = (startup_acceleration / 3.6)
+        * total_weight_kg
+        * (1.0 + INERTIA_COEFFICIENT)
+        / 9.807;
 
     let end_fixed_torque = fixed_torque_speed.min(max_speed);
     for i in 0..end_fixed_torque {
@@ -275,9 +277,8 @@ pub fn default_tractive_force(
 
     // 2. 定出力領域 [fixed_torque_speed..constant_power_speed)
     if fixed_torque_speed < max_speed && !result.is_empty() {
-        let last_force = result.last().unwrap().1;
         let v_base = fixed_torque_speed as f64;
-        let constant = v_base.powf(coefficient0) * last_force;
+        let constant = v_base.powf(coefficient0) * fixed_torque;
 
         let end_constant_power = constant_power_speed.min(max_speed);
         for i in fixed_torque_speed..end_constant_power {
@@ -286,7 +287,7 @@ pub fn default_tractive_force(
             let force = if v == 0.0 {
                 fixed_torque
             } else {
-                (constant / v.powf(coefficient0)) * (1.0 - margin_ratio)
+                constant / v.powf(coefficient0)
             };
             result.push((v, force));
         }
@@ -294,16 +295,18 @@ pub fn default_tractive_force(
 
     // 3. 特性領域 [constant_power_speed..max_speed)
     if constant_power_speed < max_speed && !result.is_empty() {
-        let last_force = result.last().unwrap().1;
         let v_base = constant_power_speed as f64;
-        let constant = v_base.powf(coefficient1) * last_force;
+        let constant = v_base.powf(coefficient1)
+            * v_base.powf(-coefficient0)
+            * (fixed_torque_speed as f64).powf(coefficient0)
+            * fixed_torque;
 
         for i in constant_power_speed..max_speed {
             let v = i as f64;
             let force = if v == 0.0 {
                 fixed_torque
             } else {
-                (constant / v.powf(coefficient1)) * (1.0 - margin_ratio)
+                constant / v.powf(coefficient1)
             };
             result.push((v, force));
         }
@@ -348,7 +351,11 @@ pub fn set_force_data(mut vehicle: Vehicle) -> Vehicle {
         ),
     };
 
-    let decel_force_kgf = (vehicle.deceleration / 3.6) * vehicle.train_weight * 1000.0 / 9.807;
+    let decel_force_kgf = (vehicle.deceleration / 3.6)
+        * vehicle.train_weight
+        * 1000.0
+        * (1.0 + INERTIA_COEFFICIENT)
+        / 9.807;
     vehicle.deceleration_force = VelocityForceTable {
         value: vec![(0.0, decel_force_kgf)],
     };
@@ -369,6 +376,16 @@ pub fn set_force_data(mut vehicle: Vehicle) -> Vehicle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_tractive_force_is_continuous_at_transitions() {
+        let forces =
+            default_tractive_force(2.5, 60, 80, 100, 3.0, 3.0, 42.1, 33.4, 1.0, 2.0);
+
+        assert!((forces[59].1 - forces[60].1).abs() < 1e-12);
+        let expected_at_second_transition = forces[60].1 * (60.0 / 80.0);
+        assert!((forces[80].1 - expected_at_second_transition).abs() < 1e-12);
+    }
 
     #[test]
     fn force_at_interpolates_and_clamps_endpoints() {

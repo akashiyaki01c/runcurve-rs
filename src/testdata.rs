@@ -134,7 +134,14 @@ pub fn get_test_vehicle() -> Vehicle {
             ),
         },
         deceleration_force: VelocityForceTable {
-            value: vec![(0.0, (deceleration / 3.6) * train_weight * 1000.0 / 9.807)],
+            value: vec![(
+                0.0,
+                (deceleration / 3.6)
+                    * train_weight
+                    * 1000.0
+                    * (1.0 + crate::model::vehicle::INERTIA_COEFFICIENT)
+                    / 9.807,
+            )],
         },
         running_resist: VelocityForceTable {
             value: default_running_resistance(
