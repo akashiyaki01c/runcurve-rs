@@ -152,7 +152,7 @@ pub struct Vehicle {
 
 /// デフォルトの走行抵抗 [kgf] を計算する（1km/h刻み）
 ///
-/// 鉄道車両の走行抵抗（機械抵抗・空気抵抗）を速度ごとに計算します。
+/// 国鉄電車（コロ軸）の走行抵抗を速度ごとに計算します。
 ///
 /// # 引数
 ///
@@ -168,10 +168,9 @@ pub struct Vehicle {
 ///
 /// # 計算式
 ///
-/// - M車の機械抵抗: (1.65 + 0.0247 * v) * M車総重量
-/// - T車の機械抵抗: (0.78 + 0.028 * v) * T車総重量
-/// - 空気抵抗: 0.028 + 0.0078 * (両数 - 1) * v²
-/// - 起動時の出発抵抗を 0km/h: +3kgf/t, 1km/h: +2kgf/t, 2km/h: +1kgf/t で補正
+/// - 走行抵抗 [kgf/t]: `1.32 + 0.0164v +
+///   [0.0280 + 0.007(n - 1)]v² / W'`
+/// - 出発抵抗 [kgf/t]: `0km/h` で `3`
 pub fn default_running_resistance(
     m_cars: f64,
     t_cars: f64,
@@ -186,32 +185,22 @@ pub fn default_running_resistance(
     let total_t_weight = t_cars * t_weight;
     // 編成総重量 [t]
     let total_weight = total_m_weight + total_t_weight;
+    let car_count = m_cars + t_cars;
 
     for i in 0..max_speed {
         // 速度 [km/h]
         let v = i as f64;
-        // 機械抵抗・空気抵抗計算
-        // M車の機械抵抗 [kgf]
-        let motor_car_resistance = (1.65 + 0.0247 * v) * total_m_weight;
-        // T車の機械抵抗 [kgf]
-        let trailer_car_resistance = (0.78 + 0.028 * v) * total_t_weight;
-        // 空気抵抗 [kgf]
-        let air_resistance = 0.028 + 0.0078 * (m_cars + t_cars - 1.0) * v.powi(2);
+        // 出発抵抗または走行抵抗 [kgf/t]
+        let resistance_per_t = if v == 0.0 {
+            3.0
+        } else {
+            1.32 + 0.0164 * v
+                + (0.0280 + 0.007 * (car_count - 1.0)) * v.powi(2) / total_weight
+        };
 
-        // 走行抵抗の合計 [kgf]
-        let total_resistance = motor_car_resistance + trailer_car_resistance + air_resistance;
+        // 抵抗の合計 [kgf]
+        let total_resistance = resistance_per_t * total_weight;
         result.push((v, total_resistance));
-    }
-
-    // 出発抵抗を補正 (0km/h: +3kgf/t, 1km/h: +2kgf/t, 2km/h: +1kgf/t)
-    if result.len() > 0 {
-        result[0].1 += 3.0 * total_weight;
-    }
-    if result.len() > 1 {
-        result[1].1 += 2.0 * total_weight;
-    }
-    if result.len() > 2 {
-        result[2].1 += 1.0 * total_weight;
     }
 
     result
@@ -385,6 +374,19 @@ mod tests {
         assert!((forces[59].1 - forces[60].1).abs() < 1e-12);
         let expected_at_second_transition = forces[60].1 * (60.0 / 80.0);
         assert!((forces[80].1 - expected_at_second_transition).abs() < 1e-12);
+    }
+
+    #[test]
+    fn default_running_resistance_uses_departure_and_running_formulas() {
+        let total_weight = 3.0 * 42.1 + 3.0 * 33.4;
+        let resistance = default_running_resistance(3.0, 3.0, 42.1, 33.4, 11);
+
+        assert!((resistance[0].1 / total_weight - 3.0).abs() < 1e-12);
+
+        let speed: f64 = 10.0;
+        let expected_per_tonne = 1.32 + 0.0164 * speed
+            + (0.0280 + 0.007 * (6.0 - 1.0)) * speed.powi(2) / total_weight;
+        assert!((resistance[10].1 - expected_per_tonne * total_weight).abs() < 1e-12);
     }
 
     #[test]
