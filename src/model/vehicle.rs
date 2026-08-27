@@ -45,23 +45,27 @@ impl VelocityForceTable {
             return self.value[last_idx].1;
         }
 
-        // 線形探索による区間特定（要素数が少ないテーブル向け）
-        // ※データ数が非常に多い場合は binary_search_by を使用可能
-        for i in 0..last_idx {
-            let (x1, y1) = self.value[i];
-            let (x2, y2) = self.value[i + 1];
-
-            if x1 <= speed && speed <= x2 {
-                if (x2 - x1).abs() < f64::EPSILON {
-                    return y1;
-                }
-                // 線形補間
-                let t = (speed - x1) / (x2 - x1);
-                return y1 + t * (y2 - y1);
+        // speed以上の最初の速度点を二分探索し、その直前の区間を補間する。
+        let mut low = 1;
+        let mut high = self.value.len();
+        while low < high {
+            let middle = low + (high - low) / 2;
+            if self.value[middle].0 < speed {
+                low = middle + 1;
+            } else {
+                high = middle;
             }
         }
 
-        self.value[last_idx].1
+        let (x1, y1) = self.value[low - 1];
+        let (x2, y2) = self.value[low];
+        if (x2 - x1).abs() < f64::EPSILON {
+            return y1;
+        }
+
+        // 線形補間
+        let t = (speed - x1) / (x2 - x1);
+        y1 + t * (y2 - y1)
     }
 }
 
@@ -360,4 +364,30 @@ pub fn set_force_data(mut vehicle: Vehicle) -> Vehicle {
     };
 
     vehicle
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn force_at_interpolates_and_clamps_endpoints() {
+        let table = VelocityForceTable {
+            value: vec![(0.0, 0.0), (10.0, 100.0), (20.0, 200.0)],
+        };
+
+        assert_eq!(table.force_at(-1.0), 0.0);
+        assert_eq!(table.force_at(5.0), 50.0);
+        assert_eq!(table.force_at(20.0), 200.0);
+        assert_eq!(table.force_at(25.0), 200.0);
+    }
+
+    #[test]
+    fn force_at_preserves_first_matching_duplicate_point() {
+        let table = VelocityForceTable {
+            value: vec![(0.0, 0.0), (10.0, 100.0), (10.0, 200.0), (20.0, 300.0)],
+        };
+
+        assert_eq!(table.force_at(10.0), 100.0);
+    }
 }
