@@ -49,7 +49,7 @@ pub fn get_test_route() -> Route {
         }],
         stop_positions: vec![
             StopPosition {
-                position: 0.0,
+                position: 50.0,
                 station_name: "A駅".to_string(),
                 track_name: "1番線".to_string(),
                 is_pass: false,
