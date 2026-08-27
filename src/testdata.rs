@@ -74,15 +74,23 @@ pub fn get_test_route() -> Route {
 pub fn get_test_vehicle() -> Vehicle {
     let m_cars = 3;
     let t_cars = 3;
+    // M車の重量 [t]
     let m_weight = 42.1;
+    // T車の重量 [t]
     let t_weight = 33.4;
+    // 最高速度 [km/h]
     let max_speed = 100.0;
+    // 起動加速度 [km/h/s]
     let startup_acceleration = 2.5;
+    // 定トルク領域終了速度 [km/h]
     let fixed_torque_speed = 60.0;
+    // 定出力領域終了速度 [km/h]
     let constant_power_speed = 80.0;
     let coefficient0 = 1.0;
     let coefficient1 = 2.0;
+    // 減速度 [km/h/s]
     let deceleration = 2.5;
+    // 編成重量 [t]
     let train_weight = 184.4;
 
     let max_speed_idx = max_speed as usize;

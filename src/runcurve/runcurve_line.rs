@@ -6,8 +6,11 @@ use crate::runcurve::runcurve_speed::get_runcurve_speed_and_time;
 /// 駅間所要時間結果
 #[derive(Debug, Clone)]
 pub struct TimeResult {
+    /// 出発駅
     pub from_station: StopPosition,
+    /// 到着駅
     pub to_station: StopPosition,
+    /// 駅間所要時間 [s]
     pub time: f64,
 }
 
@@ -39,7 +42,9 @@ pub fn get_runcurve_line(route: &Route, vehicle: &Vehicle, max_speed: f64) -> Ve
     stop_positions
         .windows(2)
         .map(|pair| {
+            // 開始位置 [m]
             let start = pair[0].position as usize;
+            // 終了位置 [m]
             let end = pair[1].position as usize;
             get_runcurve_speed_and_time(route, vehicle, start, end, max_speed)
         })
@@ -107,7 +112,9 @@ fn split_time(runcurve: &RuncurveResult, route: &Route) -> Vec<TimeResult> {
         return Vec::new();
     }
 
+    // ランカーブの開始位置 [m]
     let start = runcurve.runcurve_array.first().unwrap().distance;
+    // ランカーブの終了位置 [m]
     let end = runcurve.runcurve_array.last().unwrap().distance;
 
     // 計算範囲内（start - 1 〜 end + 1）に存在するすべての駅（通過駅含む）を取得
@@ -134,6 +141,7 @@ fn split_time(runcurve: &RuncurveResult, route: &Route) -> Vec<TimeResult> {
             .cloned()
             .unwrap_or_default();
 
+        // 駅間所要時間 [s]
         let time = runcurve.runcurve_array.last().map_or(0.0, |rc| rc.time);
 
         return vec![TimeResult {
@@ -153,6 +161,7 @@ fn split_time(runcurve: &RuncurveResult, route: &Route) -> Vec<TimeResult> {
         .cloned()
         .unwrap_or_default();
 
+    // 始点駅から最初の分割点までの所要時間 [s]
     let first_time = runcurve
         .runcurve_array
         .iter()
@@ -170,12 +179,14 @@ fn split_time(runcurve: &RuncurveResult, route: &Route) -> Vec<TimeResult> {
         let before = &split_distances[i - 1];
         let current = &split_distances[i];
 
+        // 直前の分割点までの累積時間 [s]
         let before_time = runcurve
             .runcurve_array
             .iter()
             .find(|v| (v.distance - before.position).abs() < f64::EPSILON)
             .map_or(0.0, |v| v.time);
 
+        // 現在の分割点までの累積時間 [s]
         let current_time = runcurve
             .runcurve_array
             .iter()

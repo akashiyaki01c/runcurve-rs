@@ -23,10 +23,13 @@ use crate::{
 /// 1m 移動した際の等加速度運動による終端速度 [km/h]
 #[inline]
 fn calc_next_speed(current_speed_kmh: f64, acceleration_kmhs: f64, dx_m: f64) -> f64 {
+    // 現在速度 [m/s]
     let current_speed_ms = current_speed_kmh / 3.6;
     // 加速度 [km/h/s] を [m/s^2] に変換: a [m/s^2] = a [km/h/s] / 3.6
+    // 加速度 [m/s^2]
     let accel_ms2 = acceleration_kmhs / 3.6;
 
+    // 速度の二乗 [(m/s)^2]
     let speed_sq = current_speed_ms.powi(2) + 2.0 * accel_ms2 * dx_m;
 
     if speed_sq <= 0.0 {
@@ -61,7 +64,7 @@ fn curve_resistance(radius: f64) -> f64 {
 /// - `vehicle`: 車両データ
 /// - `radius`: 曲線半径 [m]（曲線がない区間では 0.0）
 /// - `gradient`: 勾配値 [‰]（上り正、下り負）
-/// - `tunnel`: トンネル抵抗値
+/// - `tunnel`: トンネル抵抗値 [kgf/t]
 ///
 /// # 戻り値
 ///
@@ -74,14 +77,17 @@ pub fn get_notch_off_next_speed(
     tunnel: f64,
 ) -> f64 {
     // 走行抵抗 (引張力テーブルから取得) [N] または [kgf] に応じた単位質量あたりの力 [kgf/t]
+    // 走行抵抗 [kgf]
     let running_resist = vehicle.running_resist.force_at(current_speed);
 
     // 単位質量あたりの合力 [kgf/t]
+    // `force` は車両重量1tあたりの抵抗・勾配・曲線の合計 [kgf/t]
     let mut force = -running_resist / vehicle.train_weight;
     force -= tunnel + gradient;
     force -= curve_resistance(radius);
 
     // 引張力・抵抗 [kgf/t] から加速度 [km/h/s] への換算定数 (30.9)
+    // 加速度 [km/h/s]
     let acceleration = force / 30.9;
 
     calc_next_speed(current_speed, acceleration, 1.0)
@@ -98,7 +104,7 @@ pub fn get_notch_off_next_speed(
 /// - `vehicle`: 車両データ
 /// - `radius`: 曲線半径 [m]（曲線がない区間では 0.0）
 /// - `gradient`: 勾配値 [‰]（上り正、下り負）
-/// - `tunnel`: トンネル抵抗値
+/// - `tunnel`: トンネル抵抗値 [kgf/t]
 ///
 /// # 戻り値
 ///
@@ -110,13 +116,17 @@ pub fn get_accel_next_speed(
     gradient: f64,
     tunnel: f64,
 ) -> f64 {
+    // 引張力 [kgf]
     let accel_force = vehicle.acceleration_force.force_at(current_speed);
+    // 走行抵抗 [kgf]
     let running_resist = vehicle.running_resist.force_at(current_speed);
 
+    // 車両重量1tあたりの合力 [kgf/t]
     let mut force = (accel_force - running_resist) / vehicle.train_weight;
     force -= tunnel + gradient;
     force -= curve_resistance(radius);
 
+    // 加速度 [km/h/s]
     let acceleration = force / 30.9;
 
     calc_next_speed(current_speed, acceleration, 1.0)
@@ -132,7 +142,7 @@ pub fn get_accel_next_speed(
 /// - `vehicle`: 車両データ
 /// - `radius`: 曲線半径 [m]（曲線がない区間では 0.0）
 /// - `gradient`: 勾配値 [‰]（上り正、下り負）
-/// - `tunnel`: トンネル抵抗値
+/// - `tunnel`: トンネル抵抗値 [kgf/t]
 ///
 /// # 戻り値
 ///
@@ -144,13 +154,17 @@ pub fn get_decel_before_speed(
     gradient: f64,
     tunnel: f64,
 ) -> f64 {
+    // 走行抵抗 [kgf]
     let running_resist = vehicle.running_resist.force_at(current_speed);
+    // 制動力 [kgf]
     let decel_force = vehicle.deceleration_force.force_at(current_speed);
 
+    // 車両重量1tあたりの合力 [kgf/t]
     let mut force = -running_resist / vehicle.train_weight;
     force += tunnel + gradient + (decel_force / vehicle.train_weight);
     force += curve_resistance(radius);
 
+    // 逆算に用いる加速度 [km/h/s]
     let acceleration = force / 30.9;
 
     calc_next_speed(current_speed, acceleration, 1.0)
@@ -181,7 +195,9 @@ pub fn get_runcurve_speed(
     end_pos: usize,
     max_speed: f64,
 ) -> (Vec<f64>, Vec<NotchOperate>) {
+    // 制限速度から差し引く余裕速度 [km/h]
     let limit_margin_speed = 2.0;
+    // 再加速を開始する速度の割合（無次元）
     let re_acceleration_ratio = 0.85;
 
     let length = end_pos.saturating_sub(start_pos);
@@ -207,9 +223,11 @@ pub fn get_runcurve_speed(
         &tunnel_array,
     );
 
+    // 各位置の速度 [km/h]
     let mut speed_array = vec![0.0; length];
     let mut notch_operates = Vec::new();
 
+    // 現在速度 [km/h]
     let mut speed = 0.0;
     let mut notch_type = NotchType::Power;
 
@@ -220,6 +238,7 @@ pub fn get_runcurve_speed(
     });
 
     for i in 0..length {
+        // 現在位置 [m]
         let current_pos = (start_pos + i) as f64;
 
         // ----------------------------------------------------
@@ -528,6 +547,7 @@ pub fn get_runcurve_speed(
 /// Δt = Δx / v = 1m / (v / 3.6 m/s) = 3.6 / v [s]
 pub fn get_runcurve_time(speed_array: &[f64]) -> Vec<f64> {
     let mut result = vec![0.0; speed_array.len()];
+    // 累積経過時間 [s]
     let mut current_time = 0.0;
 
     for (i, &speed) in speed_array.iter().enumerate() {
@@ -610,7 +630,9 @@ pub fn get_limit_speed_array(
     end_pos: usize,
     max_speed: f64,
 ) -> Vec<f64> {
+    // 計算区間長 [m]
     let length = end_pos.saturating_sub(start_pos);
+    // 各位置の制限速度 [km/h]
     let mut result = vec![max_speed; length];
 
     // 速度が大きい順にソートして適用（厳しい制限速度で上書きするため）
@@ -658,7 +680,7 @@ pub fn get_limit_speed_array(
 /// - `limit_speed_array`: 1mごとの制限速度 [km/h]
 /// - `curve_array`: 1mごとの曲線半径 [m]
 /// - `gradient_array`: 1mごとの勾配値 [‰]
-/// - `tunnel_array`: 1mごとのトンネル種別
+/// - `tunnel_array`: 1mごとのトンネル抵抗値 [kgf/t]
 ///
 /// # 戻り値
 ///
@@ -680,8 +702,10 @@ pub fn get_limit_speed_brake_pattern_array(
     gradient_array: &[f64],
     tunnel_array: &[f64],
 ) -> Vec<f64> {
+    // 計算区間長 [m]
     let length = end_pos.saturating_sub(start_pos);
     let mut result = vec![-1.0; length];
+    // 制限速度から差し引く余裕速度 [km/h]
     let limit_margin_speed = 2.0;
 
     // 既存の制限速度リストに、終点位置の停止条件 (speed = 0) を追加
@@ -700,6 +724,7 @@ pub fn get_limit_speed_brake_pattern_array(
         }
 
         let mut i = ls_start - start_pos; // 開始インデックス
+        // ブレーキパターンの速度 [km/h]
         let mut speed = (limit_speed.speed - limit_margin_speed).max(0.0);
 
         if i < result.len() {
@@ -746,7 +771,7 @@ pub fn get_limit_speed_brake_pattern_array(
 /// - `limit_speed_array`: 1mごとの制限速度 [km/h]
 /// - `curve_array`: 1mごとの曲線半径 [m]
 /// - `gradient_array`: 1mごとの勾配値 [‰]
-/// - `tunnel_array`: 1mごとのトンネル種別
+/// - `tunnel_array`: 1mごとのトンネル抵抗値 [kgf/t]
 /// - `index`: 開始インデックス
 /// - `current_speed`: 現在の速度 [km/h]
 ///
@@ -770,6 +795,7 @@ pub fn get_10s_later_notch_off_speed(
         return 0.0;
     }
 
+    // 予測走行時間 [s]
     let mut total_time = 0.0;
 
     loop {

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// 速度と引張力（または抵抗力）の対応表。
 ///
-/// 車両の力学特性（走行抵抗、引張力、減速力）を、速度 [km/h] と力 [N] の
+/// 車両の力学特性（走行抵抗、引張力、減速力）を、速度 [km/h] と力 [kgf] の
 /// データポイントのリストとして保持します。線形補間により任意の速度での力を算出できます。
 ///
 /// # データフォーマット
@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct VelocityForceTable {
-    /// (速度 [km/h], 引張力/抵抗力 [N]) の配列
+    /// (速度 [km/h], 引張力/抵抗力 [kgf]) の配列
     pub value: Vec<(f64, f64)>,
 }
 
@@ -76,8 +76,7 @@ impl VelocityForceTable {
 /// - `number_of_cars`: 編成両数
 /// - `train_length`: 編成長 [m]
 /// - `train_weight`: 編成重量 [t]
-/// - `capacity`: 編成定員
-/// - `human_weight`: 1人あたり重量 [kg]
+/// - `capacity`: 編成定員 [人]
 /// - `occupancy_rate`: 乗車率 [%]
 /// - `unit_count`: ユニット数
 /// - `startup_acceleration`: 起動加速度 [km/h/s]
@@ -106,7 +105,7 @@ pub struct Vehicle {
     pub train_length: f64,
     /// 編成重量 [t]
     pub train_weight: f64,
-    /// 編成定員
+    /// 編成定員 [人]
     pub capacity: u32,
     /// 1人あたり重量 [kg]
     pub human_weight: f64,
@@ -131,9 +130,9 @@ pub struct Vehicle {
     pub m_weight: f64,
     /// T車の重量 [t]
     pub t_weight: f64,
-    /// 定出力領域の定数
+    /// 定出力領域の定数（無次元）
     pub coefficient0: f64,
-    /// 特性領域の定数
+    /// 特性領域の定数（無次元）
     pub coefficient1: f64,
 
     /// 加速時の引張力データ
@@ -174,17 +173,25 @@ pub fn default_running_resistance(
     max_speed: usize,
 ) -> Vec<(f64, f64)> {
     let mut result = Vec::with_capacity(max_speed);
+    // M車の総重量 [t]
     let total_m_weight = m_cars * m_weight;
+    // T車の総重量 [t]
     let total_t_weight = t_cars * t_weight;
+    // 編成総重量 [t]
     let total_weight = total_m_weight + total_t_weight;
 
     for i in 0..max_speed {
+        // 速度 [km/h]
         let v = i as f64;
         // 機械抵抗・空気抵抗計算
+        // M車の機械抵抗 [kgf]
         let motor_car_resistance = (1.65 + 0.0247 * v) * total_m_weight;
+        // T車の機械抵抗 [kgf]
         let trailer_car_resistance = (0.78 + 0.028 * v) * total_t_weight;
+        // 空気抵抗 [kgf]
         let air_resistance = 0.028 + 0.0078 * (m_cars + t_cars - 1.0) * v.powi(2);
 
+        // 走行抵抗の合計 [kgf]
         let total_resistance = motor_car_resistance + trailer_car_resistance + air_resistance;
         result.push((v, total_resistance));
     }
@@ -245,12 +252,16 @@ pub fn default_tractive_force(
     coefficient1: f64,
 ) -> Vec<(f64, f64)> {
     let mut result = Vec::with_capacity(max_speed);
+    // 力のマージン率（無次元）
     let margin_ratio = 0.1;
+    // 編成総重量 [kg]
     let total_weight_kg = (m_cars * m_weight + t_cars * t_weight) * 1000.0;
 
     // 1. 定トルク領域 [0..fixed_torque_speed)
     // F[kgf] = 編成重量[kg] * 起動加速度[m/s^2] / 9.807
+    // 定トルク領域の基準引張力 [kgf]
     let fixed_torque_base = (startup_acceleration / 3.6) * total_weight_kg / 9.807;
+    // 定トルク領域の引張力 [kgf]
     let fixed_torque = fixed_torque_base * (1.0 - margin_ratio);
 
     let end_fixed_torque = fixed_torque_speed.min(max_speed);

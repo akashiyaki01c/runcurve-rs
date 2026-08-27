@@ -21,11 +21,15 @@ use crate::model::vehicle::Vehicle;
 ///
 /// 路線データの曲線情報を参照し、各区間が曲線と重複する部分の半径を設定します。
 pub fn get_curve_radius(route: &Route, _vehicle: &Vehicle, start: usize, end: usize) -> Vec<f64> {
+    // 計算区間長 [m]
     let length = end.saturating_sub(start);
+    // 各1m区間の曲線半径 [m]
     let mut result = vec![0.0; length];
 
     for curve in &route.curves {
+        // 曲線の開始位置 [m]
         let curve_start = curve.start as usize;
+        // 曲線の終了位置 [m]
         let curve_end = curve.end as usize;
 
         // 曲線が計算範囲外の場合はスキップ
@@ -68,7 +72,9 @@ pub fn get_curve_radius(route: &Route, _vehicle: &Vehicle, start: usize, end: us
 /// 2. 各勾配点から終了位置までを同じ勾配値で埋める
 /// 3. 車両編成長に応じた移平均で平滑化処理
 pub fn get_gradient(route: &Route, vehicle: &Vehicle, start: usize, end: usize) -> Vec<f64> {
+    // 計算区間長 [m]
     let length = end.saturating_sub(start);
+    // 各1m区間の勾配 [‰]
     let mut result = vec![0.0; length];
 
     // 距離順にソート（位置順に適用していくため）
@@ -80,6 +86,7 @@ pub fn get_gradient(route: &Route, vehicle: &Vehicle, start: usize, end: usize) 
     });
 
     for gradient in &gradients {
+        // 勾配変更位置 [m]
         let grad_pos = gradient.position as usize;
 
         if end < grad_pos {
@@ -94,7 +101,9 @@ pub fn get_gradient(route: &Route, vehicle: &Vehicle, start: usize, end: usize) 
     }
 
     // 車両編成長（trainLength）に応じた平均勾配の平滑化（移動平均）
+    // 平滑化後の各1m区間の勾配 [‰]
     let mut result_blur = vec![0.0; length];
+    // 編成長の半分 [m]
     let half_length = (vehicle.train_length / 2.0).round() as i64;
     let total_length = result.len() as i64;
 
@@ -142,6 +151,7 @@ pub fn get_gradient(route: &Route, vehicle: &Vehicle, start: usize, end: usize) 
 /// - `TunnelType::Double` → 1.0
 /// - その他のトンネルタイプ (`TunnelType::Single` など) → 2.0
 pub fn get_tunnel(route: &Route, _vehicle: &Vehicle, start: usize, end: usize) -> Vec<f64> {
+    // 計算区間長 [m]
     let length = end.saturating_sub(start);
     let mut result = vec![0.0; length];
 

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 pub struct RuncurveResult {
     /// ノッチ操作履歴
     pub notches: Vec<NotchOperate>,
-    /// ランカーブ配列
+    /// ランカーブ配列（距離 [m]、速度 [km/h]、時間 [s]）
     pub runcurve_array: Vec<Runcurve>,
 }
 
