@@ -17,7 +17,10 @@ const Y_SCALE: f64 = 5.0;
 /// ヘッダの横幅
 const X_HEADER: f64 = 50.0;
 const Y_HEADER: f64 = 20.0;
-const MARGIN: f64 = 50.0;
+/// 
+const PDF_MARGIN: f64 = 50.0;
+///
+const POSITION_MARGIN: f64 = 100.0;
 
 #[derive(Debug)]
 pub enum DrawSvgError {
@@ -27,7 +30,7 @@ pub enum DrawSvgError {
 pub fn to_pdf(
     route: &Route,
     vehicle: &Vehicle,
-    result: &[RuncurveResult],
+    result: &[Vec<RuncurveResult>],
     max_speed: f64,
 ) -> Result<Vec<u8>, DrawSvgError> {
     let svg = draw_svg(route, vehicle, result, max_speed)?.to_string();
@@ -42,27 +45,27 @@ pub fn to_pdf(
 pub fn draw_svg(
     route: &Route,
     _vehicle: &Vehicle,
-    result: &[RuncurveResult],
+    result: &[Vec<RuncurveResult>],
     max_speed: f64,
 ) -> Result<SVG, DrawSvgError> {
     let start_position = route
         .stop_positions
         .first()
         .ok_or(DrawSvgError::StationNotFound)?
-        .position;
+        .position - POSITION_MARGIN;
     let end_position = route
         .stop_positions
         .last()
         .ok_or(DrawSvgError::StationNotFound)?
-        .position;
+        .position + POSITION_MARGIN;
 
     let mut svg = svg::Document::new().set(
         "viewBox",
         (
-            -MARGIN,
-            -MARGIN,
-            (end_position - start_position) * X_SCALE + X_HEADER + MARGIN * 2.0,
-            max_speed * Y_SCALE + Y_HEADER * 6.0 + MARGIN * 2.0,
+            -PDF_MARGIN,
+            -PDF_MARGIN,
+            (end_position - start_position) * X_SCALE + X_HEADER + PDF_MARGIN * 2.0,
+            max_speed * Y_SCALE + Y_HEADER * 6.0 + PDF_MARGIN * 2.0,
         ),
     );
     svg = draw_axis(
@@ -71,7 +74,32 @@ pub fn draw_svg(
         end_position - start_position,
         start_position,
     );
-    svg = draw_train(svg, result, max_speed, start_position);
+    for result in result {
+        svg = draw_train(svg, result, max_speed, start_position);
+        svg = draw_limit(
+            svg,
+            route,
+            max_speed,
+            end_position - start_position,
+            start_position,
+        );
+        svg = draw_notch(
+            svg,
+            route,
+            max_speed,
+            end_position - start_position,
+            start_position,
+            result,
+        );
+        svg = draw_station(
+        svg,
+        route,
+        max_speed,
+        end_position - start_position,
+        start_position,
+        result,
+    );
+    }
     svg = draw_curve(
         svg,
         route,
@@ -85,29 +113,6 @@ pub fn draw_svg(
         max_speed,
         end_position - start_position,
         start_position,
-    );
-    svg = draw_limit(
-        svg,
-        route,
-        max_speed,
-        end_position - start_position,
-        start_position,
-    );
-    svg = draw_station(
-        svg,
-        route,
-        max_speed,
-        end_position - start_position,
-        start_position,
-        result,
-    );
-    svg = draw_notch(
-        svg,
-        route,
-        max_speed,
-        end_position - start_position,
-        start_position,
-        result,
     );
 
     Ok(svg)

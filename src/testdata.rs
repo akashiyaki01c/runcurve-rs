@@ -81,11 +81,11 @@ pub fn get_test_vehicle() -> Vehicle {
     // 最高速度 [km/h]
     let max_speed = 100.0;
     // 起動加速度 [km/h/s]
-    let startup_acceleration = 2.5;
+    let startup_acceleration: f64 = 2.5;
     // 定トルク領域終了速度 [km/h]
-    let fixed_torque_speed = 60.0;
+    let fixed_torque_speed = 40.0;
     // 定出力領域終了速度 [km/h]
-    let constant_power_speed = 80.0;
+    let constant_power_speed = 65.0;
     let coefficient0 = 1.0;
     let coefficient1 = 2.0;
     // 減速度 [km/h/s]

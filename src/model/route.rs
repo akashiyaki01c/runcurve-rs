@@ -70,6 +70,7 @@ impl Default for CurveDirection {
 /// - `direction`: 曲線の方向 (左/右)
 /// - `speed`: 曲線上の制限速度 [km/h]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Curve {
     /// 曲線起点 [m]
     pub start: f64,
@@ -109,6 +110,7 @@ impl Default for TunnelType {
 /// - `end`: トンネル終了位置 [m]
 /// - `tunnel_type`: トンネル種別 (Single/Double)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Tunnel {
     /// トンネル名
     pub name: String,
@@ -130,6 +132,7 @@ pub struct Tunnel {
 /// - `end`: 制限速度が適用される区間の終了位置 [m]
 /// - `speed`: 制限速度 [km/h]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct LimitSpeed {
     /// 制限速度開始地点 [m]
     pub start: f64,
@@ -150,6 +153,7 @@ pub struct LimitSpeed {
 /// - `track_name`: 線路名
 /// - `is_pass`: 通過するかどうか (true = 通過, false = 停留)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct StopPosition {
     /// 停止位置 [m]
     pub position: f64,

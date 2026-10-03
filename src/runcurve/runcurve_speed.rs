@@ -2,7 +2,7 @@ use crate::{
     model::{
         route::{LimitSpeed, Route},
         runcurve::{NotchOperate, NotchType, Runcurve, RuncurveResult},
-        vehicle::{Vehicle, INERTIA_COEFFICIENT},
+        vehicle::{INERTIA_COEFFICIENT, Vehicle},
     },
     runcurve::route_data::{get_curve_radius, get_gradient, get_tunnel},
 };
@@ -286,8 +286,7 @@ pub fn get_runcurve_speed(
                 }
 
                 if speed > (limit_speed_array[i] - limit_margin_speed) {
-                    if get_cached_notch_off_speed() > speed
-                    {
+                    if get_cached_notch_off_speed() > speed {
                         notch_type = NotchType::Constant;
                         notch_operates.push(NotchOperate {
                             distance: current_pos,
@@ -309,8 +308,7 @@ pub fn get_runcurve_speed(
                 } else {
                     get_brake_pattern_distance(&brake_pattern_array, speed, i)
                 };
-                if let Some(target_idx) = brake_pattern_distance
-                {
+                if let Some(target_idx) = brake_pattern_distance {
                     let dist_diff = target_idx as f64 - i as f64;
                     if speed > 0.0 && 3.6 * (dist_diff / speed) < 5.0 {
                         notch_type = NotchType::NotchOff;
@@ -330,8 +328,7 @@ pub fn get_runcurve_speed(
                 } else {
                     get_brake_pattern_distance(&brake_pattern_array, speed, i)
                 };
-                if let Some(target_idx) = brake_pattern_distance
-                {
+                if let Some(target_idx) = brake_pattern_distance {
                     let dist_diff = target_idx as f64 - i as f64;
                     if speed > 0.0 && 3.6 * (dist_diff / speed) < 5.0 {
                         approaching_brake = true;
@@ -404,8 +401,7 @@ pub fn get_runcurve_speed(
                     }
 
                     if speed > (limit_speed_array[i] - limit_margin_speed) {
-                        if get_cached_notch_off_speed() <= speed
-                        {
+                        if get_cached_notch_off_speed() <= speed {
                             notch_type = NotchType::NotchOff;
                             notch_operates.push(NotchOperate {
                                 distance: current_pos,
@@ -433,8 +429,7 @@ pub fn get_runcurve_speed(
                     -1.0
                 };
 
-                if next_pattern > get_cached_notch_off_speed()
-                {
+                if next_pattern > get_cached_notch_off_speed() {
                     notch_type = NotchType::NotchOff;
                     notch_operates.push(NotchOperate {
                         distance: current_pos,
@@ -485,8 +480,7 @@ pub fn get_runcurve_speed(
             }
             NotchType::Brake => {
                 if brake_pattern_array[i] == -1.0 {
-                    if get_cached_notch_off_speed() > speed
-                    {
+                    if get_cached_notch_off_speed() > speed {
                         notch_type = NotchType::Constant;
                         notch_operates.push(NotchOperate {
                             distance: current_pos,
@@ -716,8 +710,10 @@ pub fn get_limit_speed_brake_pattern_array(
         }
 
         while i > 0 {
-            if speed >= limit_speed_array[i] {
-                break;
+            if let Some(v) = limit_speed_array.get(i) {
+                if speed >= *v {
+                    break;
+                }
             }
 
             i -= 1;
@@ -1016,8 +1012,12 @@ mod tests {
 
     #[test]
     fn non_monotonic_or_gapped_brake_pattern_uses_fallback() {
-        assert!(!has_contiguous_monotonic_brake_pattern(&[-1.0, 80.0, 90.0, 40.0]));
-        assert!(!has_contiguous_monotonic_brake_pattern(&[-1.0, 80.0, -1.0, 40.0]));
+        assert!(!has_contiguous_monotonic_brake_pattern(&[
+            -1.0, 80.0, 90.0, 40.0
+        ]));
+        assert!(!has_contiguous_monotonic_brake_pattern(&[
+            -1.0, 80.0, -1.0, 40.0
+        ]));
     }
 
     #[test]
