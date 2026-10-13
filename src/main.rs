@@ -32,17 +32,15 @@ fn main() {
         "043_yamasaki",
         "044_himeji",
     ];
-    
-    routes.par_iter().for_each(|route| {
-        calc_wrapper(route, false);
-        calc_wrapper(route, true);
-    });
 
+    routes.par_iter().for_each(|route| {
+        rayon::join(|| calc_wrapper(route, false), || calc_wrapper(route, true));
+    });
 }
 
 fn calc_wrapper(route: &str, is_reversed: bool) {
     let timer = std::time::Instant::now();
-    let direction =  if is_reversed {"up"} else {"down"};
+    let direction = if is_reversed { "up" } else { "down" };
 
     calc(
         &format!("./base-data/{route}.json"),
