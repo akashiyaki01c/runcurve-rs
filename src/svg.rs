@@ -438,7 +438,7 @@ fn draw_gradient(
     svg.add(group)
 }
 
-fn draw_limit(svg: SVG, route: &Route, max_speed: f64, distance: f64, start_position: f64) -> SVG {
+fn draw_limit(svg: SVG, route: &Route, max_speed: f64, _distance: f64, start_position: f64) -> SVG {
     let mut group = Group::new();
 
     for limit in &route.limit_speeds {
